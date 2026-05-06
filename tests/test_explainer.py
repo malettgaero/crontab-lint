@@ -78,3 +78,17 @@ def test_field_matches_step():
 def test_field_matches_list():
     assert _field_matches(3, "1,3,5", 0, 59) is True
     assert _field_matches(4, "1,3,5", 0, 59) is False
+
+
+def test_runs_are_strictly_after_anchor():
+    """All returned run times must be strictly after the anchor timestamp."""
+    runs = next_runs("* * * * *", count=5, after=ANCHOR)
+    for run in runs:
+        assert run > ANCHOR
+
+
+def test_runs_are_sorted_ascending():
+    """Returned run times must be in ascending (chronological) order."""
+    runs = next_runs("*/5 * * * *", count=6, after=ANCHOR)
+    for i in range(len(runs) - 1):
+        assert runs[i] < runs[i + 1]
