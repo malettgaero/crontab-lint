@@ -3,59 +3,71 @@
 import argparse
 import json
 import sys
+from typing import List
 
-from .validator import validate
-from .formatter import format_result, format_result_json
+from crontab_lint.validator import validate
+from crontab_lint.humanizer import humanize
+from crontab_lint.formatter import format_result, format_result_json
+from crontab_lint.recommender import recommend
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="crontab-lint",
         description="Static analyzer and syntax checker for crontab expressions.",
     )
-    p.add_argument(
-        "expression",
+    parser.add_argument(
+        "expressions",
         nargs="+",
-        help="One or more crontab expressions to validate (quote each one).",
+        metavar="EXPRESSION",
+        help="One or more crontab expressions to check (quote each one).",
     )
-    p.add_argument(
+    parser.add_argument(
         "--json",
         action="store_true",
         default=False,
         help="Output results as JSON.",
     )
-    p.add_argument(
-        "--no-color",
+    parser.add_argument(
+        "--recommend",
         action="store_true",
         default=False,
-        help="Disable ANSI color output.",
+        help="Show recommendations and suggestions for each expression.",
     )
-    return p
+    return parser
 
 
-def main(argv=None) -> int:
+def main(argv: List[str] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    results = [validate(expr) for expr in args.expression]
-    all_valid = all(r.is_valid for r in results)
+    all_valid = True
+    results = []
+
+    for expr in args.expressions:
+        result = validate(expr)
+        human = humanize(expr) if result else None
+        recs = recommend(expr) if args.recommend else []
+
+        if not result:
+            all_valid = False
+
+        if args.json:
+            entry = json.loads(format_result_json(expr, result, human))
+            if recs:
+                entry["recommendations"] = recs
+            results.append(entry)
+        else:
+            print(format_result(expr, result, human))
+            if recs:
+                for rec in recs:
+                    print(f"  → {rec}")
 
     if args.json:
-        payload = (
-            format_result_json(results[0])
-            if len(results) == 1
-            else [format_result_json(r) for r in results]
-        )
-        print(json.dumps(payload, indent=2))
-    else:
-        use_color = not args.no_color and sys.stdout.isatty()
-        for i, result in enumerate(results):
-            if i > 0:
-                print()
-            print(format_result(result, use_color=use_color))
+        print(json.dumps(results, indent=2))
 
     return 0 if all_valid else 1
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     sys.exit(main())
