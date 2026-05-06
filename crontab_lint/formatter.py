@@ -1,68 +1,65 @@
-"""Format validation results for CLI and programmatic output."""
+"""Output formatters for crontab-lint results."""
 
-from typing import Optional
+import json
+from typing import List
+
 from .validator import ValidationResult
-from .humanizer import humanize
+
+_COLORS = {
+    "red": "\033[31m",
+    "green": "\033[32m",
+    "yellow": "\033[33m",
+    "cyan": "\033[36m",
+    "reset": "\033[0m",
+    "bold": "\033[1m",
+}
 
 
-ANSI_RED = "\033[91m"
-ANSI_GREEN = "\033[92m"
-ANSI_YELLOW = "\033[93m"
-ANSI_CYAN = "\033[96m"
-ANSI_RESET = "\033[0m"
-ANSI_BOLD = "\033[1m"
+def _colorize(text: str, color: str) -> str:
+    """Wrap text in ANSI color codes."""
+    return f"{_COLORS.get(color, '')}{text}{_COLORS['reset']}"
 
 
-def _colorize(text: str, color: str, use_color: bool = True) -> str:
-    if not use_color:
-        return text
-    return f"{color}{text}{ANSI_RESET}"
+def format_result(result: ValidationResult, *, color: bool = True, next_runs: List = None) -> str:
+    """Format a ValidationResult as a human-readable string.
 
-
-def format_result(result: ValidationResult, use_color: bool = True) -> str:
-    """Format a ValidationResult into a human-readable string."""
+    Optionally includes upcoming run times if `next_runs` is provided.
+    """
     lines = []
+    status = _colorize("VALID", "green") if result.valid else _colorize("INVALID", "red")
+    expr = _colorize(result.expression, "cyan") if color else result.expression
+    lines.append(f"{status}  {expr}")
 
-    expr_label = _colorize("Expression:", ANSI_BOLD, use_color)
-    lines.append(f"{expr_label} {result.expression}")
-
-    if result.is_valid:
-        status = _colorize("✔ Valid", ANSI_GREEN, use_color)
-    else:
-        status = _colorize("✘ Invalid", ANSI_RED, use_color)
-    lines.append(f"Status:     {status}")
-
-    for error in result.errors:
-        prefix = _colorize("  ERROR:", ANSI_RED, use_color)
-        lines.append(f"{prefix} {error}")
+    if result.human_readable:
+        label = _colorize("Schedule:", "bold") if color else "Schedule:"
+        lines.append(f"  {label} {result.human_readable}")
 
     for warning in result.warnings:
-        prefix = _colorize("  WARN: ", ANSI_YELLOW, use_color)
-        lines.append(f"{prefix} {warning}")
+        tag = _colorize("WARN", "yellow") if color else "WARN"
+        lines.append(f"  [{tag}] {warning}")
 
-    if result.is_valid and result.parsed is not None:
-        try:
-            description = humanize(result.parsed)
-            label = _colorize("Schedule:", ANSI_CYAN, use_color)
-            lines.append(f"{label}  {description}")
-        except Exception:  # noqa: BLE001
-            pass
+    for error in result.errors:
+        tag = _colorize("ERR", "red") if color else "ERR"
+        lines.append(f"  [{tag}] {error}")
+
+    if next_runs:
+        label = _colorize("Next runs:", "bold") if color else "Next runs:"
+        lines.append(f"  {label}")
+        for dt in next_runs:
+            lines.append(f"    - {dt.strftime('%Y-%m-%d %H:%M')}")
 
     return "\n".join(lines)
 
 
-def format_result_json(result: ValidationResult) -> dict:
-    """Format a ValidationResult as a plain dict suitable for JSON output."""
-    out: dict = {
+def format_result_json(result: ValidationResult, *, next_runs: List = None) -> str:
+    """Format a ValidationResult as a JSON string."""
+    data = {
         "expression": result.expression,
-        "valid": result.is_valid,
-        "errors": result.errors,
+        "valid": result.valid,
+        "human_readable": result.human_readable,
         "warnings": result.warnings,
-        "schedule": None,
+        "errors": result.errors,
     }
-    if result.is_valid and result.parsed is not None:
-        try:
-            out["schedule"] = humanize(result.parsed)
-        except Exception:  # noqa: BLE001
-            pass
-    return out
+    if next_runs is not None:
+        data["next_runs"] = [dt.strftime("%Y-%m-%dT%H:%M:00") for dt in next_runs]
+    return json.dumps(data, indent=2)
