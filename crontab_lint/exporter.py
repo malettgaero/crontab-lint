@@ -9,6 +9,11 @@ from typing import Iterable
 from .summarizer import ExpressionSummary
 
 
+def _format_errors(errors: list[str]) -> str:
+    """Join a list of error strings into a single semicolon-separated string."""
+    return "; ".join(errors)
+
+
 def export_csv(summaries: Iterable[ExpressionSummary]) -> str:
     """Serialize a collection of ExpressionSummary objects to a CSV string."""
     output = io.StringIO()
@@ -21,7 +26,7 @@ def export_csv(summaries: Iterable[ExpressionSummary]) -> str:
                 "expression": summary.expression,
                 "valid": summary.valid,
                 "human_readable": summary.human_readable or "",
-                "errors": "; ".join(summary.errors),
+                "errors": _format_errors(summary.errors),
             }
         )
     return output.getvalue()
@@ -38,6 +43,6 @@ def export_markdown(summaries: Iterable[ExpressionSummary]) -> str:
         expression = f"`{summary.expression}`"
         valid = "✅" if summary.valid else "❌"
         human_readable = summary.human_readable or ""
-        errors = "; ".join(summary.errors) if summary.errors else ""
+        errors = _format_errors(summary.errors) if summary.errors else ""
         lines.append(f"| {expression} | {valid} | {human_readable} | {errors} |")
     return "\n".join(lines) + "\n"
