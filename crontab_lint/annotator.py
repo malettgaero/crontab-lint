@@ -34,7 +34,16 @@ _FIELD_ORDER = ["minute", "hour", "day_of_month", "month", "day_of_week"]
 
 
 def _describe_field_value(name: str, value: str) -> str:
-    """Return a short inline description for a single field's raw value."""
+    """Return a short inline description for a single field's raw value.
+
+    Handles the following value patterns:
+      - ``*``        : wildcard (every unit)
+      - ``*/n``      : step over full range
+      - ``a/n``      : step starting from a specific base value
+      - ``a-b``      : inclusive range
+      - ``a,b,...``  : explicit list of values
+      - plain number : exact value
+    """
     if value == "*":
         return f"every {name.replace('_', ' ')}"
     if "/" in value:
@@ -51,7 +60,16 @@ def _describe_field_value(name: str, value: str) -> str:
 
 
 def annotate(expression: str) -> AnnotatedCron:
-    """Parse a crontab expression and return an annotated breakdown."""
+    """Parse a crontab expression and return an annotated breakdown.
+
+    Args:
+        expression: A standard five-field crontab expression
+                    (e.g. ``"*/5 * * * *"``).
+
+    Returns:
+        An :class:`AnnotatedCron` instance.  If the expression is invalid
+        ``valid`` will be ``False`` and ``fields`` will be empty.
+    """
     from .validator import validate
 
     result = validate(expression)
@@ -90,7 +108,15 @@ def annotate(expression: str) -> AnnotatedCron:
 
 
 def format_annotation(annotated: AnnotatedCron) -> str:
-    """Render an AnnotatedCron as a human-readable multi-line string."""
+    """Render an AnnotatedCron as a human-readable multi-line string.
+
+    Args:
+        annotated: The :class:`AnnotatedCron` to format.
+
+    Returns:
+        A multi-line string suitable for printing to a terminal.
+        Invalid expressions include an error summary instead of field details.
+    """
     lines = [f"Expression : {annotated.expression}"]
     if not annotated.valid:
         lines.append(f"Status     : INVALID — {annotated.summary}")
