@@ -34,8 +34,23 @@ def build_group_parser() -> argparse.ArgumentParser:
 
 
 def _load_from_file(path: str) -> List[str]:
+    """Read non-empty, stripped lines from *path* and return them as a list."""
     with open(path) as fh:
         return [line.strip() for line in fh if line.strip()]
+
+
+def _build_json_payload(result) -> dict:
+    """Convert a GroupResult into a JSON-serialisable dictionary."""
+    return {
+        "unique_schedules": result.unique_schedules,
+        "total": result.total,
+        "invalid_count": len(result.invalid),
+        "groups": [
+            {"canonical": g.canonical, "members": g.members, "size": g.size}
+            for g in result.groups
+        ],
+        "invalid": result.invalid,
+    }
 
 
 def main(argv=None) -> int:
@@ -58,17 +73,7 @@ def main(argv=None) -> int:
     result = group(expressions)
 
     if args.json:
-        payload = {
-            "unique_schedules": result.unique_schedules,
-            "total": result.total,
-            "invalid_count": len(result.invalid),
-            "groups": [
-                {"canonical": g.canonical, "members": g.members, "size": g.size}
-                for g in result.groups
-            ],
-            "invalid": result.invalid,
-        }
-        print(json.dumps(payload, indent=2))
+        print(json.dumps(_build_json_payload(result), indent=2))
     else:
         print(format_groups(result))
 
